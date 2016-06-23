@@ -1,0 +1,139 @@
+libnss_tacplus v1.0.1
+June 22, 2016
+
+This NSS module has one and only one purpose.  It allows getpwname lookups for
+TACACS+ users that login without any
+local account on the system (mapped to local tacacs0..15), when authenticated
+with pam_tacplus.  libnss_tacplus is not useful by itself.  libnss_tacplus
+uses libtacplus-map to lookup mappings, and libtac to communicate with TACACS+
+servers.
+
+libnss_tacplus provides only the getpwnam_r entry point, and uses
+the libtac authenticate and accounting functions.
+
+Normal use is to have tacplus as the last lookup method
+for "passwd" in /etc/nsswitch.conf, although it will work
+in any position:
+    passwd: compat tacplus
+
+The above edit is made for debian packages via postinst at installation.
+
+If the username is found, and is also found in the local password
+file (via fgetpwent()), the local user passwd structure is returned
+(that is, the plugin is basicly a NOP).
+
+Otherwise, the plugin asks the TACACS+ server if the user is known, and then
+asks for attributes, so it can determine the user's privilege level.
+
+If the username is not found, a mapped lookup is performed using the
+libtacplus_map.so exported functions. The lookup is done by the one or two
+digit privilege level (0 by default) to "tacacs", and looking that name up
+in the local password file; that is, privilege level 15 looks for local user
+"tacacs15".   If found, the password structure is filled in with the
+information for that user, *except* that pw_name is filled in with the
+original (login) name.
+
+This code is based in the pam_tacplus plugin, written by
+Pawel Krawczyk <pawel.krawczyk@hush.com> and Jeroen Nijhof
+<jeroen@jeroennijhof.nl>, as well as others.   It is based
+on version pam_tacplus version 1.3.9.  It uses the libtac
+as found in pam_tacplus.  A few minor changes have been made,
+and libtac is built as a static archive library.
+
+This library requires that the libpam_tacplus headers and shared libraries
+be built and installed (my modified version, not the stock version) to
+build, and to function.
+
+All are performed using TACACS+ protocol [1], designed by Cisco Systems.
+This is remote AAA protocol, supported by most Cisco hardware. 
+
+~~~~~~~~~~~~~~~~~~~
+Recognized options in the configuration file are the same as the command line
+arguments for libpam_tacplus, but not all pam_tacplus options are supported.
+
+Option		Management group        Description
+--------------- ----------------------- ----------------------------------
+debug           ALL                     output debugging information via
+                                        syslog(3); note, that the debugging
+                                        is heavy, including passwords!
+					
+secret=STRING   ALL                     can be specified more than once;
+                                        secret key used to encrypt/decrypt
+                                        packets sent/received from the server
+
+server=HOSTNAME auth, session           can be specified more than once;
+server=IP_ADDR                          adds a TACACS+ server to the servers
+                                        list
+                                        default is 5 seconds
+
+login=STRING    auth                    TACACS+ authentication service,
+                                        this can be "pap", "chap" or "login"
+                                        at the moment. Default is pap.
+
+service         account, session        TACACS+ service for authorization
+                                        and accounting
+
+protocol        account, session        TACACS+ protocol for authorization
+                                        and accounting
+
+The last two items are widely described in TACACS+ draft [1]. They are
+required by the server, but it will work if they don't match the real
+service authorized :)
+
+See tacplus_nss.conf for an example configuration file.
+
+See the libpam_tacplus README for more information on the tacacs
+protocol, server_lists, etc.
+
+On first call, we parse the configuration file (we only try once,
+unless it can't be opened, in which case we'll keep trying on 
+every call).   We then try to connect to a tacacs server.
+
+After connecting we ask if the user is known (we send an authorization
+request to the server).  This function sends an encrypted packet to the
+TACACS+ server.  The packet contains username to verify. TACACS+ server
+replied with either positive or negative response. If the reponse is
+negative, the whole thing is over ;)
+
+If the server responds that the user is valid (no authentication
+exchange is done), we parse the returned attributes (if any)
+looking for the privilege level (any string starting with "priv",
+case independent), and then parse out the privilege level, and
+construct the "tacacs##" username.
+
+At this time, we make a new connection to the tacacs server on
+every getpwnam_r().   Ideally, that would not be done, but it
+appears that the linux tacplus server, at least, closes the
+connection at it's end after the exchange, so subsequent requests
+get SIGPIPE.
+
+
+Limitations:
+~~~~~~~~~~~~
+
+Many of them for now :)
+
+	* only subset of TACACS+ protocol is supported; it's enough for
+	  most need, though
+
+This libnss_tacplus plugin has only been compiled and tested on
+debian wheezy and jessie at this writing.  The FreeBSD NSS interface
+is somewhat different, and will require porting.
+
+This plugin has only been tested with the unmodified linux tacacs+
+server so far (using the debian wheezy package)
+		
+References:
+~~~~~~~~~~~
+
+TACACS+
+1. ftp://ftpeng.cisco.com/pub/tacplus/tac_plus.rfc.1.76.txt
+2. ftp://ftpeng.cisco.com/pub/tacplus/tac_plus.3.0.12.alpha.tar.Z
+
+NSS plugin (glibc)
+3. http://www.gnu.org/software/libc/manual/html_node/Name-Service-Switch.html
+
+Author:
+~~~~~~~
+
+Dave Olson <olson@cumulusnetworks.com>

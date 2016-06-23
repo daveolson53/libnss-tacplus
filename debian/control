@@ -1,0 +1,14 @@
+Source: libnss-tacplus
+Priority: optional
+Maintainer: devsupport <devsupport@cumulusnetworks.com>
+Build-Depends: debhelper (>= 9), autotools-dev, libtac-dev, libtacplus-map-dev, libaudit-dev, autoconf, libpam-tacplus-dev, dpkg-dev (>= 1.16.1)
+Section: libs
+Standards-Version: 3.9.6
+Homepage: http://www.cumulusnetworks.com
+
+Package: libnss-tacplus
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libtac2, libtacplus-map1, libaudit1
+Description: NSS module for TACACS+ authentication without local passwd entry
+	Performs getpwname and getpwuid lookups via NSS for users logged in via
+	tacacs authentication, and mapping done with libtacplus_map

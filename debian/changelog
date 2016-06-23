@@ -1,0 +1,8 @@
+libnss-tacplus (1.0.1-1) unstable; urgency=low
+
+  * Initial version with NSS lookups for tacacs users using mapping
+    Works with modified libpam-tacplus to authenticate TACACS+ users
+    without local passwd entries, mapping them to tacacs0..15 based on
+    TACACS privilege level.
+
+ -- Dave Olson <olson@cumulusnetworks.com>  Thu, 23 Jun 2016 13:31:01 -0700

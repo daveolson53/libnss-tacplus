@@ -1,0 +1,3 @@
+libnss_tacplus.so.2 libnss-tacplus #MINVER#
+ _nss_tacplus_getpwnam_r@Base 1.0.1
+ _nss_tacplus_getpwuid_r@Base 1.0.1

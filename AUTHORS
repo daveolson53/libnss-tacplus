@@ -1,0 +1,7 @@
+Primary Author:
+    Dave Olson <olson@cumulusnetworks.com>
+
+The TACACS code is substantially based on the pam_tacplus v1.3.9 code written by
+	Pawel Krawczyk <pawel.krawczyk@hush.com> and
+	Jeroen Nijhof <jeroen@jeroennijhof.nl>
+

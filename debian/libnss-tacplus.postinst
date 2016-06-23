@@ -1,0 +1,32 @@
+#!/bin/sh
+# postinst script for libnss-tacplus
+#
+# see: dh_installdeb(1)
+
+set -e
+
+case "$1" in
+    configure)
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+# Add tacplus to /etc/nsswitch.conf, since it's necessary
+# for this package, and won't break anything else.  Do nothing
+# if tacplus is already present in the passwd line
+if [ -e "/etc/nsswitch.conf" ]; then
+    sed -i -e '/tacplus/b' \
+        -e '/^passwd/s/compat/tacplus &/' /etc/nsswitch.conf
+fi
+
+
+#DEBHELPER#
+
+exit 0

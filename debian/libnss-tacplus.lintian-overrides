@@ -1,0 +1,8 @@
+libnss-tacplus binary package-name-doesnt-match-sonames libnss-tacplus2
+libnss-tacplus package-name-doesnt-match-sonames libnss-tacplus2
+libnss-tacplus source native-package-with-dash-version
+libnss-tacplus source diff-contains-git-control-dir .git
+libnss-tacplus source unsupported-source-format 3.0 (git)
+libnss-tacplus source changelog-should-mention-nmu
+libnss-tacplus source source-nmu-has-incorrect-version-number 1.0.1-1
+libnss-tacplus new-package-should-close-itp-bu
