@@ -1,6 +1,6 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: libnss-tacplus
-Homepage: http://cumulusnetworks.com
+Source: http://www.cumulusnetworks.com
 
 Files: *
 Copyright: 2010 Pawel Krawczyk <pawel.krawczyk@hush.com> and Jeroen Nijhof <jeroen@jeroennijhof.nl>,

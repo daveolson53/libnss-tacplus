@@ -212,7 +212,7 @@ pwcopy(char *buf, size_t len, struct passwd *srcpw, struct passwd *destpw,
     if(needlen > len) {
         if(debug)
             syslog(LOG_DEBUG, "%s provided password buffer too small (%ld<%d)",
-                nssname, len, needlen);
+                nssname, (long)len, needlen);
         return 1;
     }
 
