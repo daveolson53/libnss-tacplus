@@ -63,7 +63,7 @@ typedef struct {
 
 /* set from configuration file parsing */
 static tacplus_server_t tac_srv[TAC_PLUS_MAXSERVERS];
-static int tac_srv_no;
+static int tac_srv_no, tac_key_no;
 static char tac_service[] = "shell";
 static char tac_protocol[] = "ssh";
 static int debug;
@@ -72,7 +72,6 @@ static int conf_parsed = 0;
 static int nss_tacplus_config(int *errnop, const char *cfile, int top)
 {
     FILE *conf;
-    int tac_key_no = 0;
     char lbuf[256];
 
     if(conf_parsed > 1) /* 1: we've tried and thrown errors, 2, OK */
