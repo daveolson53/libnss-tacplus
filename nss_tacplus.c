@@ -173,8 +173,9 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
                 (*tac_service ? "server" : "service and no server"));
 
         for(n = 0; debug && n < tac_srv_no; n++)
-            syslog(LOG_DEBUG, "%s: server[%d] { addr=%s, key='%s' }",
-                nssname, n, tac_ntop(tac_srv[n].addr->ai_addr), tac_srv[n].key);
+            syslog(LOG_DEBUG, "%s: server[%d] { addr=%s, key='%s' }", nssname,
+                n, tac_srv[n].addr ? tac_ntop(tac_srv[n].addr->ai_addr)
+                : "unknown", tac_srv[n].key);
     }
 
     return 0;
@@ -402,78 +403,98 @@ got_tacacs_user(struct tac_attrib *attr, struct pwbuf *pb)
 }
 
 /*
- * find the first responding tacacs server, and return the fd.
- * Since we may be looking up multiple users, we leave the connection open,
- * once found.
+ * Attempt to connect to the requested tacacs server.
  * Returns fd for connection, or -1 on failure
  */
+
 static int
-connect_tacacs(struct tac_attrib **attr)
+connect_tacacs(struct tac_attrib **attr, int srvr)
 {
-    int srvr, fd;
+    int fd;
 
     if(!*tac_service) /* reported at config file processing */
         return -1;
-    for(srvr = 0; srvr < tac_srv_no; srvr++) {
-        fd = tac_connect_single(tac_srv[srvr].addr, tac_srv[srvr].key, NULL);
-        if(fd >= 0) {
-            *attr = NULL; /* so tac_add_attr() allocates memory */
-            tac_add_attrib(attr, "service", tac_service);
-            if(tac_protocol[0])
-                tac_add_attrib(attr, "protocol", tac_protocol);
-            /* empty cmd is required, at least for linux tac_plus */
-            tac_add_attrib(attr, "cmd", "");
-            return fd;
-        }
+
+    fd = tac_connect_single(tac_srv[srvr].addr, tac_srv[srvr].key, NULL);
+    if(fd >= 0) {
+        *attr = NULL; /* so tac_add_attr() allocates memory */
+        tac_add_attrib(attr, "service", tac_service);
+        if(tac_protocol[0])
+            tac_add_attrib(attr, "protocol", tac_protocol);
+        /* empty cmd is required, at least for linux tac_plus */
+        tac_add_attrib(attr, "cmd", "");
     }
-    return -1;
+    return fd;
 }
 
 
 /*
  * lookup the user on a TACACS server.  Returns 0 on successful lookup, else 1
  *
- * We have to make a new connection each time, because libtac is single threaded
- * (doesn't support multiple connects at the same time due to use of globals)),
+ * Make a new connection each time, because libtac is single threaded and
+ * doesn't support multiple connects at the same time due to use of globals,
  * and doesn't have support for persistent connections.   That's fixable, but
  * not worth the effort at this point.
+ * Step through all servers until success or end of list, because different
+ * servers can have different databases.
  */
 static int
 lookup_tacacs_user(struct pwbuf *pb)
 {
     struct areply arep;
-    int ret;
+    int ret = 1, done = 0;
     struct tac_attrib *attr;
-    int tac_fd;
+    int tac_fd, srvr;
 
-    if((tac_fd = connect_tacacs(&attr)) == -1)
-        return 1;
+    for(srvr=0; srvr < tac_srv_no && !done; srvr++) {
+        arep.msg = NULL;
+        arep.attr = NULL;
+        arep.status = TAC_PLUS_AUTHOR_STATUS_ERROR; /* if author_send fails */
+        tac_fd = connect_tacacs(&attr, srvr);
+        if (tac_fd < 0) {
+            if(debug)
+                syslog(LOG_WARNING, "%s: failed to connect TACACS+ server %s,"
+                    " ret=%d: %m", nssname, tac_srv[srvr].addr ?
+                    tac_ntop(tac_srv[srvr].addr->ai_addr) : "unknown", tac_fd);
+            continue;
+        }
+        ret = tac_author_send(tac_fd, pb->name, "", "", attr);
+        if(ret < 0) {
+            if(debug)
+                syslog(LOG_WARNING, "%s: TACACS+ server %s send failed (%d) for"
+                    " user %s: %m", nssname,
+                    tac_ntop(tac_srv[srvr].addr->ai_addr), ret, pb->name);
+        }
 
-    ret = tac_author_send(tac_fd, pb->name, "", "", attr);
-    if(ret < 0) {
-        if(debug)
-            syslog(LOG_WARNING, "%s: TACACS+ send failed (%d) for [%s]: %m",
-                nssname, ret, pb->name);
+        tac_free_attrib(&attr); 
+        close(tac_fd);
+        if(ret < 0)
+            continue;
+
+        if(arep.status == AUTHOR_STATUS_PASS_ADD ||
+           arep.status == AUTHOR_STATUS_PASS_REPL) {
+            ret = got_tacacs_user(arep.attr, pb);
+            if(debug)
+                syslog(LOG_DEBUG, "%s: TACACS+ server %s successful for user %s."
+                    " got_user=%d", nssname,
+                    tac_ntop(tac_srv[srvr].addr->ai_addr), pb->name, ret);
+            done = 1; /* break out of loop after arep cleanup */
+        }
+        else {
+            ret = 1; /*  in case last server */
+            if(debug)
+                syslog(LOG_DEBUG, "%s: TACACS+ server %s replies user %s"
+                    " invalid (%d)", nssname, 
+                    tac_ntop(tac_srv[srvr].addr->ai_addr), pb->name,
+                    arep.status);
+        }
+        if(arep.msg)
+            free(arep.msg);
+        if(arep.attr) /* free returned attributes */
+            tac_free_attrib(&arep.attr);
     }
-    else 
-        tac_author_read(tac_fd, &arep);
-
-    tac_free_attrib(&attr); 
-    close(tac_fd);
-    if(ret < 0)
-        return 1;
-
-    if(arep.status == AUTHOR_STATUS_PASS_ADD ||
-       arep.status == AUTHOR_STATUS_PASS_REPL)
-        ret = got_tacacs_user(arep.attr, pb);
-    else
-        ret = 1;
-    if(arep.msg)
-        free(arep.msg);
-    if(arep.attr) /* free returned attributes */
-        tac_free_attrib(&arep.attr);
     
-    return ret;
+    return ret < 0? 1 : ret;
 }
 
 static int

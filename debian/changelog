@@ -1,3 +1,11 @@
+libnss-tacplus (1.0.2-1) unstable; urgency=low
+
+  * Improve debugging on server connections, and always try all
+    servers in list until successful response, in case different
+    servers have different user databaes.
+
+ -- Dave Olson <olson@cumulusnetworks.com>  Fri, 30 Sep 2016 13:56:05 -0700
+
 libnss-tacplus (1.0.1-1) unstable; urgency=low
 
   * Initial version with NSS lookups for tacacs users using mapping
