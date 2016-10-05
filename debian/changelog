@@ -2,9 +2,12 @@ libnss-tacplus (1.0.2-1) unstable; urgency=low
 
   * Improve debugging on server connections, and always try all
     servers in list until successful response, in case different
-    servers have different user databaes.
+    servers have different user databases.
 
- -- Dave Olson <olson@cumulusnetworks.com>  Fri, 30 Sep 2016 13:56:05 -0700
+  * Add min_uid and exclude_users config variables to avoid TACACS+
+    lookups of local users, for robustness and performance.
+
+ -- Dave Olson <olson@cumulusnetworks.com>  Thu, 06 Oct 2016 14:13:43 -0700
 
 libnss-tacplus (1.0.1-1) unstable; urgency=low
 
