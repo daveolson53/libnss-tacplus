@@ -45,40 +45,50 @@ be built and installed (my modified version, not the stock version) to
 build, and to function.
 
 All are performed using TACACS+ protocol [1], designed by Cisco Systems.
-This is remote AAA protocol, supported by most Cisco hardware. 
+This is remote AAA protocol, supported by most Cisco hardware.
 
 ~~~~~~~~~~~~~~~~~~~
 Recognized options in the configuration file are the same as the command line
 arguments for libpam_tacplus, but not all pam_tacplus options are supported.
 
-Option		Management group        Description
---------------- ----------------------- ----------------------------------
-debug           ALL                     output debugging information via
-                                        syslog(3); note, that the debugging
-                                        is heavy, including passwords!
-					
-secret=STRING   ALL                     can be specified more than once;
-                                        secret key used to encrypt/decrypt
-                                        packets sent/received from the server
+Option		           Description
+---------------     ----------------------------------
+debug               output debugging information via
+                    syslog(3); note, that the debugging
+                    is heavy, including passwords!
 
-server=HOSTNAME auth, session           can be specified more than once;
-server=IP_ADDR                          adds a TACACS+ server to the servers
-                                        list
-                                        default is 5 seconds
+secret=STRING       can be specified more than once;
+                    secret key used to encrypt/decrypt
+                    packets sent/received from the server
 
-login=STRING    auth                    TACACS+ authentication service,
-                                        this can be "pap", "chap" or "login"
-                                        at the moment. Default is pap.
+server=HOSTNAME     can be specified more than once;
+server=IP_ADDR      adds a TACACS+ server to the servers
+                    list
+                    default is 5 seconds
 
-service         account, session        TACACS+ service for authorization
-                                        and accounting
+login=STRING        TACACS+ authentication service,
+                    this can be "pap", "chap" or "login"
+                    at the moment. Default is pap.
 
-protocol        account, session        TACACS+ protocol for authorization
-                                        and accounting
+service             TACACS+ service for authorization
+                    and accounting
 
-The last two items are widely described in TACACS+ draft [1]. They are
-required by the server, but it will work if they don't match the real
-service authorized :)
+protocol            TACACS+ protocol for authorization
+                    and accounting
+
+min_uid             min_uid is the minimum uid to lookup via tacacs.
+                    Setting this to 0 means uid 0 (root) is never looked up,
+                    good for robustness and performance.
+                    Should not be greater than the local tacacs{0..15} uids
+
+exclude_users       This is a comma separated list of usernames that are never
+                    looked up via tacacs.  Should include system users such as
+                    root.
+
+
+The service and protocol items are widely described in TACACS+ draft [1].
+They are required by the server, but it will work if they don't match the
+real service authorized :)
 
 See tacplus_nss.conf for an example configuration file.
 
@@ -86,7 +96,7 @@ See the libpam_tacplus README for more information on the tacacs
 protocol, server_lists, etc.
 
 On first call, we parse the configuration file (we only try once,
-unless it can't be opened, in which case we'll keep trying on 
+unless it can't be opened, in which case we'll keep trying on
 every call).   We then try to connect to a tacacs server.
 
 After connecting we ask if the user is known (we send an authorization
@@ -111,18 +121,13 @@ get SIGPIPE.
 Limitations:
 ~~~~~~~~~~~~
 
-Many of them for now :)
-
-	* only subset of TACACS+ protocol is supported; it's enough for
-	  most need, though
-
 This libnss_tacplus plugin has only been compiled and tested on
 debian wheezy and jessie at this writing.  The FreeBSD NSS interface
 is somewhat different, and will require porting.
 
 This plugin has only been tested with the unmodified linux tacacs+
 server so far (using the debian wheezy package)
-		
+
 References:
 ~~~~~~~~~~~
 
