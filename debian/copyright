@@ -3,8 +3,9 @@ Upstream-Name: libnss-tacplus
 Source: http://www.cumulusnetworks.com
 
 Files: *
-Copyright: 2010 Pawel Krawczyk <pawel.krawczyk@hush.com> and Jeroen Nijhof <jeroen@jeroennijhof.nl>,
-           2015, 2016 Cumulus Networks, Inc.
+Copyright: 2015, 2016 Cumulus Networks, Inc..  All rights reserved.,
+           2010 Pawel Krawczyk <pawel.krawczyk@hush.com> and Jeroen Nijhof <jeroen@jeroennijhof.nl>
+           
 License: GPL-2+
  This package is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
