@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2014, 2015, 2016 Cumulus Networks, Inc.  All rights reserved.
  * Author: Dave Olson <olson@cumulusnetworks.com>
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -85,7 +85,7 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
         *errnop = errno;
         if(!conf_parsed && debug) /*  debug because privileges may not allow */
             syslog(LOG_DEBUG, "%s: can't open config file %s: %m",
-                nssname, cfile); 
+                nssname, cfile);
         goto err;
     }
 
@@ -101,7 +101,7 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
             if(lbuf[8]) /* else treat as empty config, ignoring errors */
                 (void)nss_tacplus_config(errnop, &lbuf[8], top+1);
         }
-        else if(!strncmp(lbuf, "debug=", 6)) 
+        else if(!strncmp(lbuf, "debug=", 6))
             debug = strtoul(lbuf+6, NULL, 0);
         /*
          * This next group is here to prevent a warning in the
@@ -123,7 +123,7 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
             }
         }
         else if(!strncmp(lbuf, "exclude_users=", 14)) {
-            /* 
+            /*
              * Don't lookup users in this comma-separated list for both
              * robustness and performnce.  Typically root and other commonly
              * used local users.  If set, we also look up the uids
@@ -228,7 +228,7 @@ pwcopy(char *buf, size_t len, struct passwd *srcpw, struct passwd *destpw,
     if(!usename)
         usename = srcpw->pw_name;
 
-    needlen = usename ? strlen(usename) + 1 : 1 + 
+    needlen = usename ? strlen(usename) + 1 : 1 +
         srcpw->pw_dir ? strlen(srcpw->pw_dir) + 1 : 1 +
         srcpw->pw_gecos ? strlen(srcpw->pw_gecos) + 1 : 1 +
         srcpw->pw_shell ? strlen(srcpw->pw_shell) + 1 : 1 +
@@ -396,7 +396,7 @@ find_pw_user(const char *logname, const char *tacuser, struct pwbuf *pb)
  * We could optimize this for programs that do lots of lookups by leaving
  * the passwd file open and rewinding, but it doesn't seem worthwhile.
  */
-static bool 
+static bool
 lookup_local(char *name, uid_t uid)
 {
     FILE *pwfile;
@@ -504,7 +504,7 @@ lookup_tacacs_user(struct pwbuf *pb)
         if (list) {
             bool islocal = 0;
             user = strtok(list, ",");
-            list = NULL; 
+            list = NULL;
             while (user && !strcmp(user, pb->name)) {
                 if(debug)
                     syslog(LOG_DEBUG, "%s: check user=(%s)", nssname, user);
@@ -555,7 +555,7 @@ lookup_tacacs_user(struct pwbuf *pb)
                     tac_ntop(tac_srv[srvr].addr->ai_addr), ret, pb->name);
         }
 
-        tac_free_attrib(&attr); 
+        tac_free_attrib(&attr);
         close(tac_fd);
         if(ret < 0)
             continue;
@@ -565,7 +565,7 @@ lookup_tacacs_user(struct pwbuf *pb)
             ret = got_tacacs_user(arep.attr, pb);
             if(debug)
                 syslog(LOG_DEBUG, "%s: TACACS+ server %s successful for user %s."
-                    " local lookup %s", nssname, 
+                    " local lookup %s", nssname,
                     tac_ntop(tac_srv[srvr].addr->ai_addr), pb->name,
                     ret?"OK":"no match");
             done = 1; /* break out of loop after arep cleanup */
@@ -574,7 +574,7 @@ lookup_tacacs_user(struct pwbuf *pb)
             ret = 1; /*  in case last server */
             if(debug)
                 syslog(LOG_DEBUG, "%s: TACACS+ server %s replies user %s"
-                    " invalid (%d)", nssname, 
+                    " invalid (%d)", nssname,
                     tac_ntop(tac_srv[srvr].addr->ai_addr), pb->name,
                     arep.status);
         }
@@ -583,7 +583,7 @@ lookup_tacacs_user(struct pwbuf *pb)
         if(arep.attr) /* free returned attributes */
             tac_free_attrib(&arep.attr);
     }
-    
+
     return ret < 0? 1 : ret;
 }
 
@@ -601,14 +601,14 @@ lookup_mapped_uid(struct pwbuf *pb, uid_t uid, uid_t auid, int session)
 }
 
 /*
- * This is an NSS entry point. 
+ * This is an NSS entry point.
  * We implement getpwnam(), because we remap from the tacacs login
  * to the local tacacs0 ... tacacs15 users for all other info, and so
  * the normal order of "passwd tacplus" (possibly with ldap or anything
  * else prior to tacplus) will mean we only get used when there isn't
  * a local user to be found.
  *
- * We try the lookup to the tacacs server first.  If we can't make a 
+ * We try the lookup to the tacacs server first.  If we can't make a
  * connection to the server for some reason, we also try looking up
  * the account name via the mapping file, primarily to handle cases
  * where we aren't running with privileges to read the tacacs configuration
@@ -657,14 +657,13 @@ enum nss_status _nss_tacplus_getpwnam_r(const char *name, struct passwd *pw,
             char *mapname = lookup_mapname(name, -1, -1, NULL);
             if(mapname != name && !find_pw_user(name, mapname, &pbuf))
                 status = NSS_STATUS_SUCCESS;
-            
         }
     }
    return status;
 }
 
 /*
- * This is an NSS entry point. 
+ * This is an NSS entry point.
  * We implement getpwuid(), for anything that wants to get the original
  * login name from the uid.
  * If it matches an entry in the map, we use that data to replace
