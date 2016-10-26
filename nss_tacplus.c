@@ -506,7 +506,8 @@ lookup_tacacs_user(struct pwbuf *pb)
             user = strtok(list, ",");
             list = NULL; 
             while (user && !strcmp(user, pb->name)) {
-                syslog(LOG_DEBUG, "%s: check user=(%s)", nssname, user);
+                if(debug)
+                    syslog(LOG_DEBUG, "%s: check user=(%s)", nssname, user);
                 if ((islocal = lookup_local(user, 0))) {
                     if (debug)
                         syslog(LOG_DEBUG, "%s: exclude_users match (%s),"
