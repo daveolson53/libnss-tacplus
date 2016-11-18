@@ -113,6 +113,7 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
             !strncmp(lbuf, "login=", 6))
             ;
         else if(!strncmp(lbuf, "secret=", 7)) {
+            int i;
             /* no need to complain if too many on this one */
             if(tac_key_no < TAC_PLUS_MAXSERVERS) {
                 if((tac_srv[tac_key_no].key = strdup(lbuf+7)))
@@ -120,6 +121,13 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
                 else
                     syslog(LOG_ERR, "%s: unable to copy server secret %s",
                         nssname, lbuf+7);
+            }
+            /* handle case where 'secret=' was given after a 'server='
+             * parameter, fill in the current secret */
+            for(i = tac_srv_no-1; i >= 0; i--) {
+                if (tac_srv[i].key)
+                    continue;
+                tac_srv[i].key = strdup(lbuf+7);
             }
         }
         else if(!strncmp(lbuf, "exclude_users=", 14)) {
