@@ -103,6 +103,13 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
         }
         else if(!strncmp(lbuf, "debug=", 6))
             debug = strtoul(lbuf+6, NULL, 0);
+        else if (!strncmp (lbuf, "timeout=", 8)) {
+            tac_timeout = (int)strtoul(lbuf+8, NULL, 0);
+            if (tac_timeout < 0) /* explict neg values disable poll() use */
+                tac_timeout = 0;
+            else /* poll() only used if timeout is explictly set */
+                tac_readtimeout_enable = 1;
+        }
         /*
          * This next group is here to prevent a warning in the
          * final "else" case.  We don't need them, but if there
