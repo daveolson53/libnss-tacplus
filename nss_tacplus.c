@@ -405,34 +405,6 @@ find_pw_user(const char *logname, const char *tacuser, struct pwbuf *pb)
 }
 
 /*
- * Similar to the functions above, but used for the exlusion list.
- * to exclude explict users like root, or specific UIDs (if name == NULL)
- * No warnings, since it's primarily for performance.
- * We could optimize this for programs that do lots of lookups by leaving
- * the passwd file open and rewinding, but it doesn't seem worthwhile.
- */
-static bool
-lookup_local(char *name, uid_t uid)
-{
-    FILE *pwfile;
-    struct passwd *ent;
-    bool ret = 0;
-    pwfile = fopen("/etc/passwd", "r");
-
-    if(!pwfile)
-        return 0;
-
-    while(!ret && (ent = fgetpwent(pwfile))) {
-        if(!ent->pw_name)
-            continue; /* shouldn't happen */
-        if((name && !strcmp(ent->pw_name, name)) || uid == ent->pw_uid)
-            ret = 1;
-    }
-    fclose(pwfile);
-    return ret;
-}
-
-/*
  * we got the user back.  Go through the attributes, find their privilege
  * level, map to the local user, fill in the data, etc.
  * Returns 0 on success, 1 on errors.
@@ -517,19 +489,16 @@ lookup_tacacs_user(struct pwbuf *pb)
         char *user, *list;
         list = strdup(exclude_users);
         if (list) {
+            static const char *delim = ", \t\n";
             bool islocal = 0;
-            user = strtok(list, ",");
+            user = strtok(list, delim);
             list = NULL;
-            while (user && !strcmp(user, pb->name)) {
-                if(debug)
-                    syslog(LOG_DEBUG, "%s: check user=(%s)", nssname, user);
-                if ((islocal = lookup_local(user, 0))) {
-                    if (debug)
-                        syslog(LOG_DEBUG, "%s: exclude_users match (%s),"
-                            " no lookup", nssname, user);
+            while (user) {
+                if(!strcmp(user, pb->name)) {
+                    islocal = 1;
                     break;
                 }
-                user = strtok(list, ",");
+                user = strtok(NULL, delim);
             }
             free(list);
             if (islocal)
