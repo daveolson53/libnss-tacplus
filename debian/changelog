@@ -1,3 +1,17 @@
+libnss-tacplus (1.0.2) unstable; urgency=low
+  * added config variable "timeout" to limit time attempting to
+    connect to non-responding TACACS server.
+  * added config variable "exclude_users" in /etc/tacplus_nss
+    to avoid looking up "local" user accounts via TACACS servers.  This
+    improves overall system performance for local users, and avoids significant
+    delays when a TACACS server is unreachable.
+  * Fixed issues with ordering of multiple servers and secrets in config files.
+    libraries can connect to a TACACS+ server without being tacacs aware.
+  * Improved debugging messages.
+  * Minor corrections to Copyright and licensing
+
+ -- Dave Olson <olson@cumulusnetworks.com>  Tue, 29 Nov 2016 16:55:16 -0800
+
 libnss-tacplus (1.0.2-1) unstable; urgency=low
 
   * Improve debugging on server connections, and always try all
