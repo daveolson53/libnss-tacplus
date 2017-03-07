@@ -67,6 +67,7 @@ static tacplus_server_t tac_srv[TAC_PLUS_MAXSERVERS];
 static int tac_srv_no, tac_key_no;
 static char tac_service[] = "shell";
 static char tac_protocol[] = "ssh";
+static char vrfname[64];
 static char *exclude_users;
 static uid_t min_uid = ~0U; /*  largest possible */
 static int debug;
@@ -157,6 +158,8 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
             if (valid > (lbuf+8))
                 min_uid = (uid_t)uid;
         }
+        else if(!strncmp(lbuf, "vrf=", 4))
+            strncpy(vrfname, lbuf + 4, sizeof(vrfname));
         else if(!strncmp(lbuf, "server=", 7)) {
             if(tac_srv_no < TAC_PLUS_MAXSERVERS) {
                 struct addrinfo hints, *servers, *server;
@@ -454,7 +457,8 @@ connect_tacacs(struct tac_attrib **attr, int srvr)
     if(!*tac_service) /* reported at config file processing */
         return -1;
 
-    fd = tac_connect_single(tac_srv[srvr].addr, tac_srv[srvr].key, NULL);
+    fd = tac_connect_single(tac_srv[srvr].addr, tac_srv[srvr].key, NULL,
+        vrfname[0]?vrfname:NULL);
     if(fd >= 0) {
         *attr = NULL; /* so tac_add_attr() allocates memory */
         tac_add_attrib(attr, "service", tac_service);
@@ -505,7 +509,6 @@ lookup_tacacs_user(struct pwbuf *pb)
                 return 2;
         }
     }
-
     for(srvr=0; srvr < tac_srv_no && !done; srvr++) {
         arep.msg = NULL;
         arep.attr = NULL;

@@ -9,8 +9,9 @@ libnss-tacplus (1.0.2) unstable; urgency=low
     libraries can connect to a TACACS+ server without being tacacs aware.
   * Improved debugging messages.
   * Minor corrections to Copyright and licensing
+  * Added vrf config variable, so NSS lookups work correctly$
 
- -- Dave Olson <olson@cumulusnetworks.com>  Tue, 29 Nov 2016 16:55:16 -0800
+ -- Dave Olson <olson@cumulusnetworks.com>  Tue, 07 Mar 2017 12:58:03 -0800
 
 libnss-tacplus (1.0.2-1) unstable; urgency=low
 
