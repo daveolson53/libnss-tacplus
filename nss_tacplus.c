@@ -87,7 +87,7 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
         if(!conf_parsed && debug) /*  debug because privileges may not allow */
             syslog(LOG_DEBUG, "%s: can't open config file %s: %m",
                 nssname, cfile);
-        goto err;
+        return 1;
     }
 
     while(fgets(lbuf, sizeof lbuf, conf)) {
@@ -206,28 +206,36 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
     }
     fclose(conf);
 
-    if(top == 1) {
-        int n;
-        if(tac_srv_no == 0 && debug)
-            syslog(LOG_DEBUG, "%s:%s: no TACACS %s in config (or no perm),"
-                " giving up",
-                nssname, __FUNCTION__, tac_srv_no ? "service" :
-                (*tac_service ? "server" : "service and no server"));
-
-        for(n = 0; debug && n < tac_srv_no; n++)
-            syslog(LOG_DEBUG, "%s: server[%d] { addr=%s, key='%s' }", nssname,
-                n, tac_srv[n].addr ? tac_ntop(tac_srv[n].addr->ai_addr)
-                : "unknown", tac_srv[n].key);
-    }
 
     return 0;
-
-err:
-    if(conf)
-            fclose(conf);
-    return 1;
 }
 
+/*
+ * Separate function so we can print first time we try to connect,
+ * rather than during config.
+ * Don't print at config, because often the uid lookup is one we
+ * skip due to min_uid, so no reason to clutter the log.
+ */
+static void print_servers(void)
+{
+    static int printed = 0;
+    int n;
+
+    if (printed || !debug)
+        return;
+    printed = 1;
+
+    if(tac_srv_no == 0)
+        syslog(LOG_DEBUG, "%s:%s: no TACACS %s in config (or no perm),"
+            " giving up",
+            nssname, __FUNCTION__, tac_srv_no ? "service" :
+            (*tac_service ? "server" : "service and no server"));
+
+    for(n = 0; n < tac_srv_no; n++)
+        syslog(LOG_DEBUG, "%s: server[%d] { addr=%s, key='%s' }", nssname,
+            n, tac_srv[n].addr ? tac_ntop(tac_srv[n].addr->ai_addr)
+            : "unknown", tac_srv[n].key);
+}
 
 /*
  * copy a passwd structure and it's strings, using the provided buffer
@@ -454,9 +462,6 @@ connect_tacacs(struct tac_attrib **attr, int srvr)
 {
     int fd;
 
-    if(!*tac_service) /* reported at config file processing */
-        return -1;
-
     fd = tac_connect_single(tac_srv[srvr].addr, tac_srv[srvr].key, NULL,
         vrfname[0]?vrfname:NULL);
     if(fd >= 0) {
@@ -509,6 +514,11 @@ lookup_tacacs_user(struct pwbuf *pb)
                 return 2;
         }
     }
+
+    if(!*tac_service) /* reported at config file processing */
+        return ret;
+    print_servers();
+
     for(srvr=0; srvr < tac_srv_no && !done; srvr++) {
         arep.msg = NULL;
         arep.attr = NULL;
@@ -692,7 +702,7 @@ enum nss_status _nss_tacplus_getpwuid_r(uid_t uid, struct passwd *pw,
     conf_parsed = ret == 0 ? 2 : 1;
 
     if (min_uid != ~0U && uid < min_uid) {
-        if(debug)
+        if(debug > 1)
             syslog(LOG_DEBUG, "%s: uid %u < min_uid %u, don't lookup",
                 nssname, uid, min_uid);
         return status;
