@@ -75,6 +75,7 @@ static char vrfname[64];
 static char *exclude_users;
 static uid_t min_uid = ~0U; /*  largest possible */
 static int debug;
+uint16_t use_tachome;
 static int conf_parsed = 0;
 
 static void get_remote_addr(void);
@@ -176,6 +177,8 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
         }
         else if(!strncmp(lbuf, "debug=", 6))
             debug = strtoul(lbuf+6, NULL, 0);
+        else if (!strncmp (lbuf, "user_homedir=", 13))
+            use_tachome = (uint16_t)strtoul(lbuf+13, NULL, 0);
         else if (!strncmp (lbuf, "timeout=", 8)) {
             tac_timeout = (int)strtoul(lbuf+8, NULL, 0);
             if (tac_timeout < 0) /* explict neg values disable poll() use */
@@ -319,12 +322,15 @@ static void print_servers(void)
  */
 static int
 pwcopy(char *buf, size_t len, struct passwd *srcpw, struct passwd *destpw,
-       const char *usename)
+       const char *usename, uint16_t tachome)
 {
-    int needlen, cnt;
+    int needlen, cnt, origlen = len;
+    char *shell;
 
-    if(!usename)
+    if(!usename) {
         usename = srcpw->pw_name;
+        tachome = 0; /*  early lookups; no tachome */
+    }
 
     needlen = usename ? strlen(usename) + 1 : 1 +
         srcpw->pw_dir ? strlen(srcpw->pw_dir) + 1 : 1 +
@@ -353,6 +359,14 @@ pwcopy(char *buf, size_t len, struct passwd *srcpw, struct passwd *destpw,
     len -= cnt;
     cnt = snprintf(buf, len, "%s", srcpw->pw_shell ? srcpw->pw_shell : "");
     destpw->pw_shell = buf;
+    shell = strrchr(buf, '/');
+    shell = shell ? shell+1 : buf;
+    if (tachome && *shell == 'r') {
+        tachome = 0;
+        if(debug > 1)
+            syslog(LOG_DEBUG, "%s tacacs login %s with user_homedir not allowed; "
+                "shell is %s", nssname, srcpw->pw_name, buf);
+    }
     cnt++;
     buf += cnt;
     len -= cnt;
@@ -361,11 +375,28 @@ pwcopy(char *buf, size_t len, struct passwd *srcpw, struct passwd *destpw,
     cnt++;
     buf += cnt;
     len -= cnt;
-    cnt = snprintf(buf, len, "%s", srcpw->pw_dir ? srcpw->pw_dir : "");
+    if (tachome && usename) {
+        char *slash, dbuf[strlen(srcpw->pw_dir) + strlen(usename)];
+        snprintf(dbuf, sizeof dbuf, "%s", srcpw->pw_dir ? srcpw->pw_dir : "");
+        slash = strrchr(dbuf, '/');
+        if (slash) {
+            slash++;
+            snprintf(slash, sizeof dbuf - (slash-dbuf), "%s", usename);
+        }
+        cnt = snprintf(buf, len, "%s", dbuf);
+    }
+    else
+        cnt = snprintf(buf, len, "%s", srcpw->pw_dir ? srcpw->pw_dir : "");
     destpw->pw_dir = buf;
     cnt++;
     buf += cnt;
     len -= cnt;
+    if(len < 0) {
+        if(debug)
+            syslog(LOG_DEBUG, "%s provided password buffer too small (%ld<%d)",
+                nssname, (long)origlen, origlen-(int)len);
+        return 1;
+    }
 
     return 0;
 }
@@ -413,11 +444,11 @@ recheck:
         if(!ent->pw_name)
             continue; /* shouldn't happen */
         if(!strcmp(ent->pw_name, pb->name)) {
-            retu = pwcopy(ubuf, sizeof(ubuf), ent, &upw, NULL);
+            retu = pwcopy(ubuf, sizeof(ubuf), ent, &upw, NULL, use_tachome);
             matches++;
         }
         else if(!strcmp(ent->pw_name, tacuser)) {
-            rett = pwcopy(tbuf, sizeof(tbuf), ent, &tpw, NULL);
+            rett = pwcopy(tbuf, sizeof(tbuf), ent, &tpw, NULL, use_tachome);
             matches++;
         }
     }
@@ -433,9 +464,11 @@ recheck:
             syslog(LOG_DEBUG, "%s: local user not found at privilege=%u,"
                 " using %s", nssname, origpriv, tacuser);
         if(upw.pw_name && !retu)
-            ret = pwcopy(pb->buf, pb->buflen, &upw, pb->pw, pb->name);
+            ret = pwcopy(pb->buf, pb->buflen, &upw, pb->pw, pb->name,
+                use_tachome);
         else if(tpw.pw_name && !rett)
-            ret = pwcopy(pb->buf, pb->buflen, &tpw, pb->pw, pb->name);
+            ret = pwcopy(pb->buf, pb->buflen, &tpw, pb->pw, pb->name,
+                use_tachome);
     }
     if(ret)
        *pb->errnop = ERANGE;
@@ -452,7 +485,8 @@ recheck:
  * returns 0 on success
  */
 static int
-find_pw_user(const char *logname, const char *tacuser, struct pwbuf *pb)
+find_pw_user(const char *logname, const char *tacuser, struct pwbuf *pb,
+    uint16_t usetachome)
 {
     FILE *pwfile;
     struct passwd *ent;
@@ -476,7 +510,7 @@ find_pw_user(const char *logname, const char *tacuser, struct pwbuf *pb)
         if(!ent->pw_name)
             continue; /* shouldn't happen */
         if(!strcmp(ent->pw_name, tacuser)) {
-            ret = pwcopy(pb->buf, pb->buflen, ent, pb->pw, logname);
+            ret = pwcopy(pb->buf, pb->buflen, ent, pb->pw, logname, usetachome);
             break;
         }
     }
@@ -663,12 +697,13 @@ static int
 lookup_mapped_uid(struct pwbuf *pb, uid_t uid, uid_t auid, int session)
 {
     char *loginname, mappedname[256];
+    uint16_t flag;
 
     mappedname[0] = '\0';
     loginname = lookup_mapuid(uid, auid, session,
-                            mappedname, sizeof mappedname);
+                            mappedname, sizeof mappedname, &flag);
     if(loginname)
-        return find_pw_user(loginname, mappedname, pb);
+        return find_pw_user(loginname, mappedname, pb, flag & MAP_USERHOMEDIR);
     return 1;
 }
 
@@ -718,6 +753,7 @@ enum nss_status _nss_tacplus_getpwnam_r(const char *name, struct passwd *pw,
         if(!lookup)
             status = NSS_STATUS_SUCCESS;
         else if(lookup == 1) { /*  2 means exclude_users match */
+            uint16_t flag;
             /*
              * If we can't contact a tacacs server (either not configured, or
              * more likely, we aren't running as root and the config for the
@@ -728,8 +764,9 @@ enum nss_status _nss_tacplus_getpwnam_r(const char *name, struct passwd *pw,
              * common case of wanting to use the original login name by non-root
              * users.
              */
-            char *mapname = lookup_mapname(name, -1, -1, NULL);
-            if(mapname != name && !find_pw_user(name, mapname, &pbuf))
+            char *mapname = lookup_mapname(name, -1, -1, NULL, &flag);
+            if(mapname != name && !find_pw_user(name, mapname, &pbuf,
+                    flag & MAP_USERHOMEDIR))
                 status = NSS_STATUS_SUCCESS;
         }
     }
