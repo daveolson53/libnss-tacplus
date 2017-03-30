@@ -36,6 +36,7 @@
 #include <ctype.h>
 #include <nss.h>
 #include <libaudit.h>
+#include <sys/socket.h>
 
 #include <tacplus/libtac.h>
 #include <tacplus/map_tacplus_user.h>
@@ -67,11 +68,14 @@ static tacplus_server_t tac_srv[TAC_PLUS_MAXSERVERS];
 static int tac_srv_no, tac_key_no;
 static char tac_service[] = "shell";
 static char tac_protocol[] = "ssh";
+static char tac_rhost[INET6_ADDRSTRLEN];
 static char vrfname[64];
 static char *exclude_users;
 static uid_t min_uid = ~0U; /*  largest possible */
 static int debug;
 static int conf_parsed = 0;
+
+static void get_remote_addr(void);
 
 static int nss_tacplus_config(int *errnop, const char *cfile, int top)
 {
@@ -531,7 +535,7 @@ lookup_tacacs_user(struct pwbuf *pb)
                     tac_ntop(tac_srv[srvr].addr->ai_addr) : "unknown", tac_fd);
             continue;
         }
-        ret = tac_author_send(tac_fd, pb->name, "", "", attr);
+        ret = tac_author_send(tac_fd, pb->name, "", tac_rhost, attr);
         if(ret < 0) {
             if(debug)
                 syslog(LOG_WARNING, "%s: TACACS+ server %s send failed (%d) for"
@@ -620,6 +624,8 @@ enum nss_status _nss_tacplus_getpwnam_r(const char *name, struct passwd *pw,
 
     result = nss_tacplus_config(errnop, config_file, 1);
     conf_parsed = result == 0 ? 2 : 1;
+
+    get_remote_addr();
 
     if(result) { /* no config file, no servers, etc. */
         /*  this is a debug because privileges may not allow access */
@@ -729,4 +735,32 @@ enum nss_status _nss_tacplus_getpwuid_r(uid_t uid, struct passwd *pw,
         !lookup_mapped_uid(&pb, uid, (uid_t)-1, ~0))
         status = NSS_STATUS_SUCCESS;
     return status;
+}
+
+static void get_remote_addr(void)
+{
+    struct sockaddr_storage addr;
+    socklen_t len = sizeof addr;
+    char ipstr[INET6_ADDRSTRLEN];
+
+    /*  This is so we can fill in the rhost field when we talk to the
+     *  TACACS+ server, when it's an ssh connection, so sites that refuse
+     *  authorization unless from specific IP addresses will get that
+     *  information.  It's pretty much of a hack, but it works.
+     */
+    if (getpeername(0, (struct sockaddr*)&addr, &len) == -1)
+        return;
+
+    *ipstr = 0;
+    if (addr.ss_family == AF_INET) {
+        struct sockaddr_in *s = (struct sockaddr_in *)&addr;
+        inet_ntop(AF_INET, &s->sin_addr, ipstr, sizeof ipstr);
+    } else {
+        struct sockaddr_in6 *s = (struct sockaddr_in6 *)&addr;
+        inet_ntop(AF_INET6, &s->sin6_addr, ipstr, sizeof ipstr);
+    }
+
+    snprintf(tac_rhost, sizeof tac_rhost, "%s", ipstr);
+    if(debug > 1 && tac_rhost[0])
+        syslog(LOG_DEBUG, "%s: rhost=%s", nssname, tac_rhost);
 }
