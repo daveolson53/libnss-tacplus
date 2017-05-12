@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2014, 2015, 2016 Cumulus Networks, Inc.  All rights reserved.
+ * Copyright (C) 2014, 2015, 2016, 2017 Cumulus Networks, Inc.
+ * All rights reserved.
  * Author: Dave Olson <olson@cumulusnetworks.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -37,6 +38,7 @@
 #include <nss.h>
 #include <libaudit.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 
 #include <tacplus/libtac.h>
 #include <tacplus/map_tacplus_user.h>
@@ -60,7 +62,7 @@ struct pwbuf {
 
 typedef struct {
     struct addrinfo *addr;
-    const char *key;
+    char *key;
 } tacplus_server_t;
 
 /* set from configuration file parsing */
@@ -77,14 +79,77 @@ static int conf_parsed = 0;
 
 static void get_remote_addr(void);
 
+#define MAX_INCL 8 /*  max config level nesting */
+
+/*  reset all config variables when we are going to re-parse */
+static void
+reset_config(void)
+{
+    int i, nservers;
+
+    /*  reset the config variables that we use, freeing memory where needed */
+    nservers = tac_srv_no;
+    tac_srv_no = 0;
+    tac_key_no = 0;
+    vrfname[0] = '\0';
+    if(exclude_users[0])
+        (void)free(exclude_users);
+    exclude_users = NULL;
+    debug = 0;
+    use_tachome = 0;
+    tac_timeout = 0;
+    min_uid = ~0U;
+
+    for(i = 0; i < nservers; i++) {
+        if(tac_srv[i].key) {
+            free(tac_srv[i].key);
+            tac_srv[i].key = NULL;
+        }
+        tac_srv[i].addr = NULL;
+    }
+}
+
 static int nss_tacplus_config(int *errnop, const char *cfile, int top)
 {
     FILE *conf;
     char lbuf[256];
+    static struct stat lastconf[MAX_INCL];
+    static char *cfilelist[MAX_INCL];
+    struct stat st, *lst;
 
-    if(conf_parsed > 1) /* 1: we've tried and thrown errors, 2, OK */
-        return 0;
+    if(top > MAX_INCL) {
+        syslog(LOG_NOTICE, "%s: Config file include depth > %d, ignoring %s",
+            nssname, MAX_INCL, cfile);
+        return 1;
+    }
 
+    lst = &lastconf[top-1];
+    if(conf_parsed && top == 1) {
+        /*
+         *  check to see if the config file(s) have changed since last time,
+         *  in case we are part of a long-lived daemon.  If any changed,
+         *  reparse.  If not, return the appropriate status (err or OK)
+         *  This is somewhat complicated by the include file mechanism.
+         *  When we have nested includes, we have to check all the config
+         *  files we saw previously, not just the top level config file.
+         */
+        int i;
+        for(i=0; i < MAX_INCL; i++) {
+            struct stat *cst;
+            cst = &lastconf[i];
+            if(!cst->st_ino || !cfilelist[i]) /* end of files */
+                return conf_parsed == 2 ? 0 : 1;
+            if (stat(cfilelist[i], &st) || st.st_ino != cst->st_ino || 
+                st.st_mtime !=  cst->st_mtime || st.st_ctime != cst->st_ctime)
+                break; /* found removed or different file, so re-parse */
+        }
+        reset_config();
+        syslog(LOG_NOTICE, "%s: Configuration file(s) have changed, re-initializing",
+            nssname);
+    }
+
+    /*  don't check for failures, we'll just skip, don't want to error out */
+    cfilelist[top-1] = strdup(cfile);
     conf = fopen(cfile, "r");
     if(conf == NULL) {
         *errnop = errno;
@@ -93,6 +158,8 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
                 nssname, cfile);
         return 1;
     }
+    if (fstat(fileno(conf), lst) != 0)
+        memset(lst, 0, sizeof *lst); /*  avoid stale data, no warning */
 
     while(fgets(lbuf, sizeof lbuf, conf)) {
         if(*lbuf == '#' || isspace(*lbuf))
@@ -101,9 +168,10 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
         if(!strncmp(lbuf, "include=", 8)) {
             /*
              * allow include files, useful for centralizing tacacs
-             * server IP address and secret.
+             * server IP address and secret.  When running non-privileged,
+             * may not be able to read one or more config files.
              */
-            if(lbuf[8]) /* else treat as empty config, ignoring errors */
+            if(lbuf[8])
                 (void)nss_tacplus_config(errnop, &lbuf[8], top+1);
         }
         else if(!strncmp(lbuf, "debug=", 6))

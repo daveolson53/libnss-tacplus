@@ -1,4 +1,4 @@
-libnss-tacplus (1.0.2) unstable; urgency=low
+libnss-tacplus (1.0.3-1) unstable; urgency=low
   * added config variable "timeout" to limit time attempting to
   * added config variable "exclude_users" in /etc/tacplus_nss
     to avoid looking up "local" user accounts via TACACS servers.  This
@@ -11,6 +11,8 @@ libnss-tacplus (1.0.2) unstable; urgency=low
   * Added vrf config variable, so NSS lookups work correctly$
   * During login, send remote add IP address in AUTH request
     connect to non-responding TACACS server.
+  * configuration files should automatically be reparsed
+    if they change, for long-lived programs and daemons that use NSS.
 
  -- Dave Olson <olson@cumulusnetworks.com>  Tue, 07 Mar 2017 12:58:03 -0800
 
