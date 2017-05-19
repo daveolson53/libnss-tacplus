@@ -537,7 +537,6 @@ connect_tacacs(struct tac_attrib **attr, int srvr)
     fd = tac_connect_single(tac_srv[srvr].addr, tac_srv[srvr].key, NULL,
         vrfname[0]?vrfname:NULL);
     if(fd >= 0) {
-        *attr = NULL; /* so tac_add_attr() allocates memory */
         tac_add_attrib(attr, "service", tac_service);
         if(tac_protocol[0])
             tac_add_attrib(attr, "protocol", tac_protocol);
@@ -563,7 +562,7 @@ lookup_tacacs_user(struct pwbuf *pb)
 {
     struct areply arep;
     int ret = 1, done = 0;
-    struct tac_attrib *attr;
+    struct tac_attrib *attr = NULL;
     int tac_fd, srvr;
 
     if (exclude_users) {
@@ -601,13 +600,14 @@ lookup_tacacs_user(struct pwbuf *pb)
                 syslog(LOG_WARNING, "%s: failed to connect TACACS+ server %s,"
                     " ret=%d: %m", nssname, tac_srv[srvr].addr ?
                     tac_ntop(tac_srv[srvr].addr->ai_addr) : "unknown", tac_fd);
+            tac_free_attrib(&attr);
             continue;
         }
         ret = tac_author_send(tac_fd, pb->name, "", tac_rhost, attr);
         if(ret < 0) {
             if(debug)
-                syslog(LOG_WARNING, "%s: TACACS+ server %s send failed (%d) for"
-                    " user %s: %m", nssname, tac_srv[srvr].addr ?
+                syslog(LOG_WARNING, "%s: TACACS+ server %s authorization failed (%d) "
+                    " user (%s)", nssname, tac_srv[srvr].addr ?
                     tac_ntop(tac_srv[srvr].addr->ai_addr) : "unknown", ret,
                     pb->name);
         }
@@ -632,11 +632,14 @@ lookup_tacacs_user(struct pwbuf *pb)
         if(arep.status == AUTHOR_STATUS_PASS_ADD ||
            arep.status == AUTHOR_STATUS_PASS_REPL) {
             ret = got_tacacs_user(arep.attr, pb);
-            if(debug)
+            if(debug>1)
                 syslog(LOG_DEBUG, "%s: TACACS+ server %s successful for user %s."
                     " local lookup %s", nssname,
                     tac_ntop(tac_srv[srvr].addr->ai_addr), pb->name,
                     ret?"OK":"no match");
+            else if(debug)
+                syslog(LOG_DEBUG, "%s: TACACS+ server %s successful for user %s",
+                    nssname, tac_ntop(tac_srv[srvr].addr->ai_addr), pb->name);
             done = 1; /* break out of loop after arep cleanup */
         }
         else {
