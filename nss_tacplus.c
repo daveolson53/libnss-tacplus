@@ -140,7 +140,7 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
             cst = &lastconf[i];
             if(!cst->st_ino || !cfilelist[i]) /* end of files */
                 return conf_parsed == 2 ? 0 : 1;
-            if (stat(cfilelist[i], &st) || st.st_ino != cst->st_ino || 
+            if (stat(cfilelist[i], &st) || st.st_ino != cst->st_ino ||
                 st.st_mtime !=  cst->st_mtime || st.st_ctime != cst->st_ctime)
                 break; /* found removed or different file, so re-parse */
         }
