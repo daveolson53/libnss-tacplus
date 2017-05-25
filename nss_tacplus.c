@@ -260,7 +260,8 @@ static int nss_tacplus_config(int *errnop, const char *cfile, int top)
                         tac_srv[tac_srv_no].addr = server;
                         /* use current key, if our index not yet set */
                         if(tac_key_no && !tac_srv[tac_srv_no].key)
-                            tac_srv[tac_srv_no].key = tac_srv[tac_key_no-1].key;
+                            tac_srv[tac_srv_no].key =
+                                strdup(tac_srv[tac_key_no-1].key);
                         tac_srv_no++;
                     }
                 }
