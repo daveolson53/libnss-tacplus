@@ -93,9 +93,10 @@ reset_config(void)
     tac_srv_no = 0;
     tac_key_no = 0;
     vrfname[0] = '\0';
-    if(exclude_users[0])
+    if(exclude_users) {
         (void)free(exclude_users);
-    exclude_users = NULL;
+        exclude_users = NULL;
+    }
     debug = 0;
     use_tachome = 0;
     tac_timeout = 0;
