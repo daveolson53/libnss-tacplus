@@ -7,6 +7,13 @@ set -e
 
 case "$1" in
     configure)
+        # Add tacplus to /etc/nsswitch.conf, since it's necessary
+        # for this package, and won't break anything else.  Do nothing
+        # if tacplus is already present in the passwd line
+        if [ -e "/etc/nsswitch.conf" ]; then
+            sed -i -e '/tacplus\s/b' \
+                -e '/^passwd:/s/compat/tacplus &/' /etc/nsswitch.conf
+        fi
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)
@@ -17,14 +24,6 @@ case "$1" in
         exit 1
     ;;
 esac
-
-# Add tacplus to /etc/nsswitch.conf, since it's necessary
-# for this package, and won't break anything else.  Do nothing
-# if tacplus is already present in the passwd line
-if [ -e "/etc/nsswitch.conf" ]; then
-    sed -i -e '/tacplus/b' \
-        -e '/^passwd/s/compat/tacplus &/' /etc/nsswitch.conf
-fi
 
 
 #DEBHELPER#

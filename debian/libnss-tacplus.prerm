@@ -1,0 +1,13 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = remove ]; then
+    # Undo the addition of the plugin
+    if [ -e "/etc/nsswitch.conf" ]; then
+        sed -i -e '/^passwd:.*tacplus\s/s/tacplus\s//' \
+            /etc/nsswitch.conf || true # don't prevent remove on error
+    fi
+fi
+
+#DEBHELPER#

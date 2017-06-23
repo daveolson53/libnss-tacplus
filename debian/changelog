@@ -1,3 +1,12 @@
+libnss-tacplus (1.0.3-2) unstable; urgency=low
+  * Fixed package remove to clean up plugin entries in nsswitch.conf
+  * New Disabled: added user_homedir config variable to allow per-user
+    home directories (unless per-command authorization is enabled)
+  * Fixed configuration files should automatically be reparsed
+    if they change, for long-lived programs and daemons that use NSS.
+
+ -- Dave Olson <olson@cumulusnetworks.com>  Fri, 30 Jun 2017 13:34:20 -0700
+
 libnss-tacplus (1.0.3-1) unstable; urgency=low
   * Added config variable "timeout" to limit time attempting to
     connect to non-responding TACACS server.
