@@ -608,7 +608,6 @@ lookup_tacacs_user(struct pwbuf *pb)
             static const char *delim = ", \t\n";
             bool islocal = 0;
             user = strtok(list, delim);
-            list = NULL;
             while (user) {
                 if(!strcmp(user, pb->name)) {
                     islocal = 1;
